@@ -158,6 +158,13 @@ The `tally()` function in `questions.ts` handles both types and uses `safeParseO
 DATABASE_URL=postgresql://...    # Neon.tech connection string
 NODE_ENV=production              # Set by Render automatically
 PORT=3000                        # Optional, defaults to 3000
+ADMIN_SECRET=your_secret_here    # Required for admin API routes
+```
+
+### Web (`web/.env.local`)
+```
+NEXT_PUBLIC_API_URL=https://your-backend.onrender.com
+ADMIN_SECRET=your_secret_here    # Same value as backend — server-side only on Vercel
 ```
 
 ### App (`app/app.json` → `extra.apiUrl`)
@@ -208,13 +215,27 @@ npm start
 
 ## Pending / Next Steps
 
-- [ ] Deploy backend to Render with a fresh Neon database
+- [ ] Deploy backend to Render with a fresh Neon database (add `ADMIN_SECRET` env var)
 - [ ] Update `app/app.json` `extra.apiUrl` to the Render URL
+- [ ] Deploy `web/` to Vercel (set `NEXT_PUBLIC_API_URL` + `ADMIN_SECRET` env vars)
 - [ ] Test on a real device via Expo Go
 - [ ] (Optional) Add question categories / tags
 - [ ] (Optional) Add "trending" sort to feed
 - [ ] (Optional) Add question expiry / closing after N answers
-- [ ] (Optional) Build a web version
+
+## Web App (`web/`)
+
+Next.js 15 app with App Router. Two surfaces:
+- `/` — participant feed: scroll-snap TikTok-style cards, tap to vote, live results
+- `/admin` — password-gated dashboard: stats, all questions with vote tallies, delete
+
+### Auth design
+Admin password entered in browser → POST `/api/admin/auth` → checked server-side against `ADMIN_SECRET` env var → httpOnly cookie set. Subsequent admin data fetches go through Next.js API routes that read the cookie and inject the real `ADMIN_SECRET` into backend calls. The secret never touches the browser.
+
+### Deploying to Vercel
+1. Connect the `SurveyTok` GitHub repo in Vercel
+2. Set **Root Directory** to `web`
+3. Add env vars: `NEXT_PUBLIC_API_URL` (Render URL) and `ADMIN_SECRET` (same value as backend)
 
 ---
 

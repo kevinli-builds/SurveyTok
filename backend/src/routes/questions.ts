@@ -133,4 +133,56 @@ function tally(
   return counts
 }
 
+// Admin: all questions with tallied results
+router.get('/admin/all', async (req, res) => {
+  const secret = req.headers['x-admin-secret']
+  if (!secret || secret !== process.env.ADMIN_SECRET)
+    return void res.status(401).json({ error: 'Unauthorized' })
+
+  const questions = await prisma.question.findMany({
+    include: { answers: true },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const result = questions.map(q => ({
+    id: q.id,
+    text: q.text,
+    type: q.type,
+    options: q.options,
+    authorId: q.authorId,
+    status: q.status,
+    createdAt: q.createdAt,
+    answerCount: q.answers.length,
+    results: tally(q.type, q.options, q.answers.map(a => a.value)),
+  }))
+
+  res.json(result)
+})
+
+// Admin: delete a question
+router.delete('/admin/:id', async (req, res) => {
+  const secret = req.headers['x-admin-secret']
+  if (!secret || secret !== process.env.ADMIN_SECRET)
+    return void res.status(401).json({ error: 'Unauthorized' })
+
+  await prisma.answer.deleteMany({ where: { questionId: req.params.id } })
+  await prisma.question.delete({ where: { id: req.params.id } })
+  res.json({ ok: true })
+})
+
+// Admin: site-wide stats
+router.get('/admin/stats', async (req, res) => {
+  const secret = req.headers['x-admin-secret']
+  if (!secret || secret !== process.env.ADMIN_SECRET)
+    return void res.status(401).json({ error: 'Unauthorized' })
+
+  const [totalQuestions, totalAnswers, totalUsers] = await Promise.all([
+    prisma.question.count(),
+    prisma.answer.count(),
+    prisma.user.count(),
+  ])
+
+  res.json({ totalQuestions, totalAnswers, totalUsers })
+})
+
 export { router as questionsRouter }
