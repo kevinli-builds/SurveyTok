@@ -194,11 +194,23 @@ npm start
 
 ## Deployment
 
-- **Database**: Neon.tech (free PostgreSQL) — separate Neon project from DIWTKN
-- **Backend**: Render.com free web service — connect this GitHub repo, uses `render.yaml`
-  - Set env vars: `DATABASE_URL` (from Neon) and `ADMIN_SECRET` (must match the value on Vercel)
-  - Both are declared in `render.yaml` with `sync: false`, so Render prompts for them on deploy
-  - `start:prod` script runs `prisma migrate deploy` before server start
+- **Database**: Neon.tech (free PostgreSQL) — separate Neon project `surveytok`
+  (project id `late-shadow-55947917`, region AWS us-east-1, Postgres 17).
+  - `DATABASE_URL` uses the **direct (non-pooled)** endpoint — pooled/PgBouncer is
+    unreliable for `prisma migrate deploy`, which runs on every boot.
+- **Backend**: ✅ **LIVE** at `https://surveytok-backend.onrender.com`
+  - Deployed as a **manual free Web Service** (NOT a Blueprint). Render now requires a
+    credit card on file to apply a `render.yaml` Blueprint; a manual free Web Service
+    does not, so we configured it by hand. `render.yaml` is kept for reference only.
+  - Source: **public Git repo URL** (no GitHub OAuth), branch `main`, Root Directory `backend`, region Oregon.
+  - Build command: `npm install --include=dev && npm run db:generate && npm run build`
+    (the `--include=dev` is required: `NODE_ENV=production` would otherwise make npm
+    skip TypeScript, breaking `tsc`).
+  - Start command: `npm run start:prod` (runs `prisma migrate deploy` then the server).
+  - Env vars set in the Render dashboard: `DATABASE_URL`, `ADMIN_SECRET`, `NODE_ENV=production`.
+  - Free instance spins down after inactivity → first request can take ~50s (cold start).
+  - Note: public-repo deploys have **no auto-deploy**; redeploy via "Manual Deploy" in Render
+    (or connect the GitHub account later to enable push-to-deploy).
 - **App**: Run locally via Expo Go; update `extra.apiUrl` in `app.json` to the Render URL
 
 ---
@@ -216,9 +228,9 @@ npm start
 
 ## Pending / Next Steps
 
-- [ ] Deploy backend to Render with a fresh Neon database (add `ADMIN_SECRET` env var)
-- [ ] Update `app/app.json` `extra.apiUrl` to the Render URL
-- [ ] Deploy `web/` to Vercel (set `NEXT_PUBLIC_API_URL` + `ADMIN_SECRET` env vars)
+- [x] Deploy backend to Render with a fresh Neon database — **live at `https://surveytok-backend.onrender.com`**
+- [ ] Deploy `web/` to Vercel (Root Directory `web`; set `NEXT_PUBLIC_API_URL=https://surveytok-backend.onrender.com` + `ADMIN_SECRET` matching Render)
+- [ ] Update `app/app.json` `extra.apiUrl` to `https://surveytok-backend.onrender.com`
 - [ ] Test on a real device via Expo Go
 - [ ] (Optional) Add question categories / tags
 - [ ] (Optional) Add "trending" sort to feed
