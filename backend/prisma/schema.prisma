@@ -15,15 +15,25 @@ model User {
 }
 
 model Question {
-  id        String   @id @default(cuid())
-  text      String
-  type      String   // "yesno" | "multiplechoice"
-  options   String?  // JSON: string[] for MC options
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  createdAt DateTime @default(now())
-  status    String   @default("active")
-  answers   Answer[]
+  id         String    @id @default(cuid())
+  text       String
+  type       String    // "yesno" | "multiplechoice"
+  options    String?   // JSON: string[] for MC options
+  authorId   String?   // device User who created it (mobile/web app); null for surveyor questions
+  author     User?     @relation(fields: [authorId], references: [id])
+  surveyorId String?   // Surveyor who created it (web surveyor dashboard); null for app questions
+  surveyor   Surveyor? @relation(fields: [surveyorId], references: [id])
+  createdAt  DateTime  @default(now())
+  status     String    @default("active") // "active" | "closed"
+  answers    Answer[]
+}
+
+model Surveyor {
+  id           String     @id @default(cuid())
+  handle       String     @unique
+  passwordHash String // scrypt: "salt:hash"
+  createdAt    DateTime   @default(now())
+  questions    Question[]
 }
 
 model Answer {

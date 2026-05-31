@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../lib/prisma'
+import { tally } from '../lib/tally'
 
 const router = Router()
 
@@ -17,7 +18,12 @@ router.get('/feed', async (req, res) => {
   const questions = await prisma.question.findMany({
     where: {
       status: 'active',
-      authorId: { not: userId },
+      // include surveyor questions (authorId null) and other users' questions,
+      // but exclude the requesting user's own device-authored questions
+      OR: [
+        { authorId: null },
+        { authorId: { not: userId } },
+      ],
       ...(answeredIds.length > 0 && { id: { notIn: answeredIds } }),
     },
     orderBy: { createdAt: 'desc' },
@@ -104,34 +110,6 @@ router.get('/:id/results', async (req, res) => {
   const results = tally(question.type, question.options, question.answers.map(a => a.value))
   res.json({ results, total: question.answers.length })
 })
-
-function safeParseOptions(optionsJson: string | null): string[] {
-  if (!optionsJson) return []
-  try {
-    const parsed = JSON.parse(optionsJson)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function tally(
-  type: string,
-  optionsJson: string | null,
-  values: string[]
-): Record<string, number> {
-  if (type === 'yesno') {
-    return {
-      yes: values.filter(v => v === 'yes').length,
-      no: values.filter(v => v === 'no').length,
-    }
-  }
-  const options = safeParseOptions(optionsJson)
-  const counts: Record<string, number> = {}
-  options.forEach((_, i) => { counts[String(i)] = 0 })
-  values.forEach(v => { counts[v] = (counts[v] || 0) + 1 })
-  return counts
-}
 
 // Admin: all questions with tallied results
 router.get('/admin/all', async (req, res) => {

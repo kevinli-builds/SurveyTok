@@ -101,15 +101,17 @@ model User {
 }
 
 model Question {
-  id        String   @id @default(cuid())
-  text      String
-  type      String   // "yesno" | "multiplechoice"
-  options   String?  // JSON-encoded string[] for MC options
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  createdAt DateTime @default(now())
-  status    String   @default("active")
-  answers   Answer[]
+  id         String    @id @default(cuid())
+  text       String
+  type       String    // "yesno" | "multiplechoice"
+  options    String?   // JSON-encoded string[] for MC options
+  authorId   String?   // device User (app); null for surveyor questions
+  author     User?     @relation(fields: [authorId], references: [id])
+  surveyorId String?   // Surveyor (web dashboard); null for app questions
+  surveyor   Surveyor? @relation(fields: [surveyorId], references: [id])
+  createdAt  DateTime  @default(now())
+  status     String    @default("active") // "active" | "closed"
+  answers    Answer[]
 }
 
 model Answer {
@@ -122,7 +124,19 @@ model Answer {
   createdAt  DateTime @default(now())
   @@unique([questionId, userId])  // one answer per user per question
 }
+
+model Surveyor {
+  id           String     @id @default(cuid())
+  handle       String     @unique   // lowercased, [a-z0-9_]{3,30}
+  passwordHash String                // scrypt "salt:hash"
+  createdAt    DateTime   @default(now())
+  questions    Question[]
+}
 ```
+
+> Migration `20260530214500_add_surveyors` adds `Surveyor`, makes `Question.authorId`
+> nullable, and adds `Question.surveyorId`. A question is authored by **either** a
+> device `User` (app) **or** a `Surveyor` (web dashboard).
 
 ---
 
@@ -140,6 +154,21 @@ model Answer {
 | GET | `/health` | `{ok: true}` |
 | GET | `/privacy` | HTML privacy policy page |
 
+### Surveyor endpoints (server-to-server only — require `x-admin-secret`)
+
+The web app's Next.js routes are the only caller; they hold `ADMIN_SECRET` and pass
+the surveyor id from a signed session cookie. Never called directly from a browser.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/surveyors/register` | `{handle, password}` — create surveyor (scrypt hash) |
+| POST | `/surveyors/login` | `{handle, password}` — verify, returns `{id, handle}` |
+| POST | `/surveyors/questions` | `{surveyorId, text, type, options?}` — create a question |
+| GET | `/surveyors/:id/questions` | Surveyor's questions with tallied results |
+| GET | `/surveyors/:id/stats` | KPIs: totals, avg/question, active, last-7-days |
+| PATCH | `/surveyors/:surveyorId/questions/:id` | `{status}` — close/reopen (scoped) |
+| DELETE | `/surveyors/:surveyorId/questions/:id` | Delete (scoped to owner) |
+
 ---
 
 ## Question Types
@@ -147,7 +176,9 @@ model Answer {
 - **yesno**: two options, values are the strings `"yes"` and `"no"`
 - **multiplechoice**: 2–4 options stored as JSON array in `Question.options`; answer values are `"0"`, `"1"`, `"2"`, `"3"` (index)
 
-The `tally()` function in `questions.ts` handles both types and uses `safeParseOptions()` to guard against malformed stored JSON.
+The `tally()` function in `backend/src/lib/tally.ts` (shared by `questions.ts` and
+`surveyors.ts`) handles both types and uses `safeParseOptions()` to guard against
+malformed stored JSON.
 
 ---
 
@@ -229,21 +260,38 @@ npm start
 ## Pending / Next Steps
 
 - [x] Deploy backend to Render with a fresh Neon database — **live at `https://surveytok-backend.onrender.com`**
+- [x] Surveyor accounts + dashboard (`/surveyor`) — backend + web built (needs deploy)
+- [ ] **Redeploy backend on Render** ("Manual Deploy") so the `add_surveyors` migration
+      runs and the `/surveyors` routes go live
 - [ ] Deploy `web/` to Vercel (Root Directory `web`; set `NEXT_PUBLIC_API_URL=https://surveytok-backend.onrender.com` + `ADMIN_SECRET` matching Render)
 - [ ] Update `app/app.json` `extra.apiUrl` to `https://surveytok-backend.onrender.com`
 - [ ] Test on a real device via Expo Go
 - [ ] (Optional) Add question categories / tags
 - [ ] (Optional) Add "trending" sort to feed
-- [ ] (Optional) Add question expiry / closing after N answers
 
 ## Web App (`web/`)
 
-Next.js 15 app with App Router. Two surfaces:
-- `/` — participant feed: scroll-snap TikTok-style cards, tap to vote, live results
+Next.js 15 app with App Router. Three surfaces:
+- `/` — participant feed: scroll-snap TikTok-style cards, tap to vote, live results.
+  A fixed "Sign in as Surveyor →" link (top-right) routes to `/surveyor`.
 - `/admin` — password-gated dashboard: stats, all questions with vote tallies, delete
+- `/surveyor` — surveyor accounts: sign in / sign up (handle + passphrase), create
+  questions, view per-question results, KPIs, and close/delete their own questions
 
 ### Auth design
 Admin password entered in browser → POST `/api/admin/auth` → checked server-side against `ADMIN_SECRET` env var → httpOnly cookie set. Subsequent admin data fetches go through Next.js API routes that read the cookie and inject the real `ADMIN_SECRET` into backend calls. The secret never touches the browser.
+
+### Surveyor accounts
+- Each surveyor has a unique `handle` + scrypt-hashed passphrase (stored in `Surveyor`).
+- Login/register POST to `/api/surveyor/auth`, which proxies to the backend (with
+  `x-admin-secret`). On success it sets an **HMAC-signed** httpOnly cookie
+  (`surveyor_session`) carrying `{id, handle}` — signed with `ADMIN_SECRET` via
+  `web/lib/surveyorSession.ts` so it can't be forged. 7-day expiry.
+- All `/api/surveyor/*` data routes verify the signed cookie, extract the surveyor id,
+  and call the backend with `x-admin-secret`, scoping every query to that surveyor.
+- Security model: client↔Vercel = signed cookie; Vercel↔backend = shared `ADMIN_SECRET`;
+  backend scopes data by surveyorId. `ADMIN_SECRET` doubles as the cookie-signing key
+  (no extra env var to manage).
 
 ### Deploying to Vercel
 1. Connect the `SurveyTok` GitHub repo in Vercel

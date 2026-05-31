@@ -32,37 +32,60 @@ export default function FeedPage() {
     } catch {}
   }
 
+  let content: React.ReactNode
   if (loading) {
-    return (
+    content = (
       <div style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f0f13' }}>
         <div style={{ width: 40, height: 40, border: '3px solid #6C63FF', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
-  }
-
-  if (empty) {
-    return (
+  } else if (empty) {
+    content = (
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f0f13', gap: 12 }}>
         <div style={{ fontSize: 48 }}>🎉</div>
         <p style={{ color: '#aaa', fontSize: 18 }}>You&apos;ve seen everything!</p>
         <p style={{ color: '#555', fontSize: 14 }}>Check back later for new questions.</p>
       </div>
     )
+  } else {
+    content = (
+      <div className="feed">
+        {questions.map(q => (
+          <div className="feed-card" key={q.id}>
+            <QuestionCard
+              question={q}
+              vote={votes[q.id]}
+              onVote={value => vote(q.id, value)}
+            />
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
-    <div className="feed">
-      {questions.map(q => (
-        <div className="feed-card" key={q.id}>
-          <QuestionCard
-            question={q}
-            vote={votes[q.id]}
-            onVote={value => vote(q.id, value)}
-          />
-        </div>
-      ))}
-    </div>
+    <>
+      {content}
+      <SurveyorLink />
+    </>
+  )
+}
+
+function SurveyorLink() {
+  return (
+    <a
+      href="/surveyor"
+      style={{
+        position: 'fixed', top: 16, right: 16, zIndex: 50,
+        background: '#1a1a24', border: '1.5px solid #6C63FF55', borderRadius: 100,
+        padding: '8px 16px', color: '#cfcaff', fontSize: 13, fontWeight: 600,
+        textDecoration: 'none', boxShadow: '0 4px 20px rgba(108,99,255,0.2)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      Sign in as Surveyor →
+    </a>
   )
 }
 

@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import { questionsRouter } from './routes/questions'
 import { usersRouter } from './routes/users'
+import { surveyorsRouter } from './routes/surveyors'
 
 const app = express()
 app.use(cors())
@@ -10,6 +11,7 @@ app.use(express.json())
 
 app.use('/questions', questionsRouter)
 app.use('/users', usersRouter)
+app.use('/surveyors', surveyorsRouter)
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
