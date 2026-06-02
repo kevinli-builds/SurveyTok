@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { readSessionToken } from '@/lib/surveyorSession'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
-const secretHeader = { 'x-admin-secret': process.env.ADMIN_SECRET ?? '' }
+import { API_URL, internalHeaders } from '@/lib/serverConfig'
 
 async function getSession() {
   const store = await cookies()
@@ -15,7 +13,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const res = await fetch(`${API_URL}/surveyors/${session.id}/questions`, {
-    headers: secretHeader,
+    headers: internalHeaders,
     cache: 'no-store',
   })
   const data = await res.json()
@@ -29,7 +27,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const res = await fetch(`${API_URL}/surveyors/questions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...secretHeader },
+    headers: { 'Content-Type': 'application/json', ...internalHeaders },
     body: JSON.stringify({ ...body, surveyorId: session.id }),
   })
   const data = await res.json()

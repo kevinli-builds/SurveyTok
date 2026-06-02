@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSessionToken } from '@/lib/surveyorSession'
+import { API_URL, internalHeaders, cookieSecure } from '@/lib/serverConfig'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 const COOKIE = 'surveyor_session'
 
 export async function POST(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-admin-secret': process.env.ADMIN_SECRET ?? '',
+      ...internalHeaders,
     },
     body: JSON.stringify({ handle, password }),
   })
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
   const store = await cookies()
   store.set(COOKIE, token, {
     httpOnly: true,
+    secure: cookieSecure,
     sameSite: 'strict',
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days

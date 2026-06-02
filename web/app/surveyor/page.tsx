@@ -153,7 +153,7 @@ function AuthForm({ onAuthed }: { onAuthed: (handle: string) => void }) {
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            placeholder={mode === 'register' ? 'At least 6 characters' : 'Your passphrase'}
+            placeholder={mode === 'register' ? 'At least 8 characters' : 'Your passphrase'}
             required
             style={inputStyle}
           />

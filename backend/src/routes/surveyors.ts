@@ -2,29 +2,34 @@ import { Router } from 'express'
 import { prisma } from '../lib/prisma'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { tally } from '../lib/tally'
+import { loginLimiter, registerLimiter } from '../lib/rateLimit'
 
 const router = Router()
+
+// Server-to-server secret shared with the Vercel web app. Falls back to
+// ADMIN_SECRET so deployments that haven't set a dedicated key keep working.
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || process.env.ADMIN_SECRET
 
 // All surveyor endpoints are server-to-server only: the Vercel web app proxies
 // to them with the shared secret. Per-surveyor scoping is enforced below using
 // the surveyorId, which the web layer derives from a signed session cookie.
 router.use((req, res, next) => {
   const secret = req.headers['x-admin-secret']
-  if (!secret || secret !== process.env.ADMIN_SECRET)
+  if (!secret || secret !== INTERNAL_SECRET)
     return void res.status(401).json({ error: 'Unauthorized' })
   next()
 })
 
 // Register a new surveyor
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   const { handle, password } = req.body
   if (!handle || !password)
     return void res.status(400).json({ error: 'Handle and passphrase required' })
   const normalized = String(handle).trim().toLowerCase()
   if (!/^[a-z0-9_]{3,30}$/.test(normalized))
     return void res.status(400).json({ error: 'Handle must be 3–30 chars: letters, numbers, underscore' })
-  if (String(password).length < 6)
-    return void res.status(400).json({ error: 'Passphrase must be at least 6 characters' })
+  if (String(password).length < 8)
+    return void res.status(400).json({ error: 'Passphrase must be at least 8 characters' })
 
   const existing = await prisma.surveyor.findUnique({ where: { handle: normalized } })
   if (existing) return void res.status(409).json({ error: 'That handle is already taken' })
@@ -36,7 +41,7 @@ router.post('/register', async (req, res) => {
 })
 
 // Log in an existing surveyor
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { handle, password } = req.body
   if (!handle || !password)
     return void res.status(400).json({ error: 'Handle and passphrase required' })

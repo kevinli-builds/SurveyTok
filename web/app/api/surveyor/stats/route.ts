@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { readSessionToken } from '@/lib/surveyorSession'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+import { API_URL, internalHeaders } from '@/lib/serverConfig'
 
 export async function GET() {
   const store = await cookies()
@@ -10,7 +9,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const res = await fetch(`${API_URL}/surveyors/${session.id}/stats`, {
-    headers: { 'x-admin-secret': process.env.ADMIN_SECRET ?? '' },
+    headers: internalHeaders,
     cache: 'no-store',
   })
   const data = await res.json()

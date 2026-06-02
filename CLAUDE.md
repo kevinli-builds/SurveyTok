@@ -189,14 +189,26 @@ malformed stored JSON.
 DATABASE_URL=postgresql://...    # Neon.tech connection string
 NODE_ENV=production              # Set by Render automatically
 PORT=3000                        # Optional, defaults to 3000
-ADMIN_SECRET=your_secret_here    # Required for admin API routes
+ADMIN_SECRET=your_secret_here    # Admin password + default internal/server-to-server secret
+WEB_ORIGIN=https://...           # Optional: comma-separated allowed CORS origins
+                                 #   (defaults to the prod Vercel URL; *.vercel.app always allowed)
+INTERNAL_API_SECRET=...          # Optional: dedicated server-to-server secret for /surveyors
+                                 #   (falls back to ADMIN_SECRET). Must match Vercel if set.
 ```
 
 ### Web (`web/.env.local`)
 ```
 NEXT_PUBLIC_API_URL=https://your-backend.onrender.com
 ADMIN_SECRET=your_secret_here    # Same value as backend — server-side only on Vercel
+INTERNAL_API_SECRET=...          # Optional: must equal the backend's if set
+SESSION_SECRET=...               # Optional: dedicated surveyor-cookie signing key
+                                 #   (falls back to ADMIN_SECRET)
 ```
+
+> The three secrets all default to `ADMIN_SECRET` when unset, so the app works with
+> just `ADMIN_SECRET` configured. Setting `INTERNAL_API_SECRET` / `SESSION_SECRET`
+> later lets you separate the admin password, the server-to-server key, and the
+> cookie-signing key — but `INTERNAL_API_SECRET` must match on **both** Render and Vercel.
 
 ### App (`app/app.json` → `extra.apiUrl`)
 Change `"apiUrl": "http://localhost:3000"` to your Render URL after deploying.
@@ -254,6 +266,31 @@ npm start
 - **Feed deduplication**: feed query excludes questions the user has already answered AND their own questions
 - **Options stored as JSON string**: Prisma/PostgreSQL doesn't have a native array type at this schema level; `options` is a `String?` containing `JSON.stringify(string[])`, always handled via `safeParseOptions()`
 - **`return void res.json()`**: TypeScript strict mode pattern for Express async handlers — prevents type errors from returned Response objects
+
+---
+
+## Security Hardening
+
+A security review was run on the full stack; these mitigations are in place:
+
+- **Password hashing**: scrypt + per-user salt + `timingSafeEqual` (`lib/password.ts`)
+- **Session integrity**: surveyor cookie is HMAC-signed (`lib/surveyorSession.ts`),
+  `httpOnly`, `SameSite=Strict`, and `Secure` in production
+- **Rate limiting** (`backend/src/lib/rateLimit.ts`, needs `app.set('trust proxy', 1)`):
+  - surveyor `/login` — 10 **failed** attempts per handle / 15 min
+  - surveyor `/register` — 30 / hour
+  - public `POST /questions` and `/answer` — 40 / min per client IP
+- **CORS allowlist**: `WEB_ORIGIN` + `*.vercel.app` + no-origin clients (Expo app,
+  server-to-server); everything else rejected
+- **Secret separation** (optional, all fall back to `ADMIN_SECRET`): `INTERNAL_API_SECRET`
+  (server-to-server) and `SESSION_SECRET` (cookie signing)
+- **Robustness**: `express-async-errors` + a centralized error handler so async route
+  throws return a clean 500 instead of hanging; internals never leaked to clients
+- **Known/accepted**: anonymous voting is spoofable by generating device IDs (inherent
+  to the no-account feed — rate limiting caps volume); handle enumeration on register
+
+Inherently safe by stack: Prisma parameterizes all queries (no SQLi); React escapes
+output (no XSS — no `dangerouslySetInnerHTML`); secrets are server-side only.
 
 ---
 

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../lib/prisma'
 import { tally } from '../lib/tally'
+import { writeLimiter } from '../lib/rateLimit'
 
 const router = Router()
 
@@ -55,7 +56,7 @@ router.get('/mine', async (req, res) => {
 })
 
 // Post a new question
-router.post('/', async (req, res) => {
+router.post('/', writeLimiter, async (req, res) => {
   const { authorId, text, type, options } = req.body
   if (!authorId || !text || !type)
     return void res.status(400).json({ error: 'authorId, text, type required' })
@@ -76,7 +77,7 @@ router.post('/', async (req, res) => {
 })
 
 // Submit an answer; returns aggregate results immediately
-router.post('/:id/answer', async (req, res) => {
+router.post('/:id/answer', writeLimiter, async (req, res) => {
   const { userId, value } = req.body
   const { id } = req.params
   if (!userId || value === undefined)

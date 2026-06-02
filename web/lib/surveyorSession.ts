@@ -4,7 +4,9 @@ import { createHmac, timingSafeEqual } from 'crypto'
 // verified. It carries the surveyor id + handle, HMAC-signed with ADMIN_SECRET
 // so a client cannot forge or tamper with it. Format: "<base64url payload>.<sig>".
 
-const SECRET = process.env.ADMIN_SECRET || 'insecure-dev-secret'
+// Dedicated cookie-signing key, falling back to ADMIN_SECRET so nothing breaks
+// until a separate SESSION_SECRET is configured on Vercel.
+const SECRET = process.env.SESSION_SECRET || process.env.ADMIN_SECRET || 'insecure-dev-secret'
 
 export type SurveyorSession = { id: string; handle: string }
 

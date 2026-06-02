@@ -1,12 +1,32 @@
 import 'dotenv/config'
-import express from 'express'
+import 'express-async-errors' // routes async throws to the error handler instead of hanging
+import express, { type Request, type Response, type NextFunction } from 'express'
 import cors from 'cors'
 import { questionsRouter } from './routes/questions'
 import { usersRouter } from './routes/users'
 import { surveyorsRouter } from './routes/surveyors'
 
 const app = express()
-app.use(cors())
+
+// Render runs behind a single proxy; trust it so req.ip reflects the real client
+// (required for correct per-IP rate limiting).
+app.set('trust proxy', 1)
+
+// CORS: allow our web app (and Vercel preview deploys) plus non-browser clients
+// (the Expo app and server-to-server calls send no Origin header).
+const WEB_ORIGINS = (process.env.WEB_ORIGIN || 'https://survey-tok-nouc.vercel.app')
+  .split(',').map(s => s.trim()).filter(Boolean)
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true)
+    try {
+      const host = new URL(origin).hostname
+      if (WEB_ORIGINS.includes(origin) || host.endsWith('.vercel.app')) return cb(null, true)
+    } catch { /* fall through */ }
+    cb(new Error('Not allowed by CORS'))
+  },
+}))
+
 app.use(express.json())
 
 app.use('/questions', questionsRouter)
@@ -104,6 +124,15 @@ app.get('/privacy', (_req, res) => {
   </div>
 </body>
 </html>`)
+})
+
+// Centralized error handler — async route rejections land here (via
+// express-async-errors) and get a clean 500 instead of hanging the request.
+// Never leaks internals to the client.
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err)
+  if (res.headersSent) return
+  res.status(500).json({ error: 'Internal server error' })
 })
 
 const PORT = process.env.PORT ?? 3000
