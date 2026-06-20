@@ -13,6 +13,53 @@ Claude Code sessions — no external team.
 
 ---
 
+## Current Status & Build Summary
+
+**As of the latest session, SurveyTok is fully deployed and live on free infrastructure.**
+
+### What's live
+
+| Piece | Where | Status |
+|---|---|---|
+| **Backend API** | Render web service `surveytok-backend` → `https://surveytok-backend.onrender.com` | ✅ Live (`/health` → `{ok:true}`) |
+| **Database** | Neon Postgres project `surveytok` (us-east-1), direct/non-pooled connection | ✅ Migrated |
+| **Web app** | Vercel project `survey-tok-nouc` → `https://survey-tok-nouc.vercel.app` (root dir `web`, auto-deploys on push to `main`) | ✅ Live |
+| **Mobile app** | Expo (`app/`) — run locally via Expo Go | ⏸ Not yet pointed at prod URL |
+
+### What was built (chronological)
+
+1. **Web app (`web/`)** — Next.js 15 / App Router, deployed to Vercel:
+   - `/` participant feed (TikTok-style scroll-snap, tap to vote, live results)
+   - `/admin` password-gated moderation dashboard (stats, all questions, delete)
+2. **Backend deployment** — Render free web service (manual, **not** a Blueprint —
+   Blueprints now require a credit card). Neon Postgres created for the DB.
+3. **Surveyor accounts (`/surveyor`)** — handle + passphrase sign-up/in; create
+   questions; per-question results; KPI dashboard; close/reopen/delete own questions.
+   Surveyor questions flow into the public feed. New `Surveyor` model; `Question`
+   gained nullable `authorId` + `surveyorId`.
+4. **Security hardening** (after a full review) — rate limiting, `Secure` cookies,
+   CORS allowlist, async-error handling, optional secret separation, stronger
+   passphrase floor. See the **Security Hardening** section below.
+
+### Key facts to remember
+
+- **Default branch is `main`** (renamed from `master`).
+- **Render has NO auto-deploy** (public-repo deploy) → after pushing backend changes,
+  trigger **Manual Deploy → Deploy latest commit** in the Render dashboard. The build
+  runs `prisma migrate deploy`, so new migrations apply on deploy.
+- **Vercel auto-deploys** the web app on every push to `main`.
+- **One secret to rule them all**: `ADMIN_SECRET` is set on **both** Render and Vercel
+  and must match. It's the admin password, the server-to-server key, and the
+  cookie-signing key (the latter two are optionally separable — see env var docs).
+- Free Render instance **cold-starts (~50s)** after inactivity.
+
+### Pending / next ideas
+
+- Point the Expo app's `extra.apiUrl` at the Render URL and test on a device.
+- (Optional) categories/tags, trending sort, GitHub-connected auto-deploy on Render.
+
+---
+
 ## Origin
 
 SurveyTok was originally built as part of the **"Do I Want To Know"** project
