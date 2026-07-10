@@ -8,6 +8,12 @@ order. Verify current state first._
 
 ---
 
+## 0. Status ledger (2026-07-05) + how to pick up
+
+**Status: PARKED.** Live but dormant; nothing from this brief is built. Do not invest here unless the user explicitly revives it.
+**If revived, in order** — first fold the Express API into the Next.js app on Vercel (§3 — the Render cold start breaks respondent flows), then §5 S4 statistical-honesty layer (cheap, improves everything), S1 question types, S2 branching micro-surveys ⭐ (the research-instrument unlock).
+**One secret note** — `ADMIN_SECRET` currently does triple duty (admin pw + server key + cookie key); separate them on revival.
+
 ## 1. Product roadmap (PM) — only if revived
 
 The core loop (scroll → tap → instant results) is strong but has no
