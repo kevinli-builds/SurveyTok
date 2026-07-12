@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { tally } from '../lib/tally'
 import { loginLimiter, registerLimiter } from '../lib/rateLimit'
+import { validateQuestionInput } from '../lib/questionInput'
+import { safeSecretEqual } from '../lib/secrets'
 
 const router = Router()
 
@@ -14,8 +16,7 @@ const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET || process.env.ADMIN_SEC
 // to them with the shared secret. Per-surveyor scoping is enforced below using
 // the surveyorId, which the web layer derives from a signed session cookie.
 router.use((req, res, next) => {
-  const secret = req.headers['x-admin-secret']
-  if (!secret || secret !== INTERNAL_SECRET)
+  if (!safeSecretEqual(req.headers['x-admin-secret'], INTERNAL_SECRET))
     return void res.status(401).json({ error: 'Unauthorized' })
   next()
 })
@@ -54,28 +55,20 @@ router.post('/login', loginLimiter, async (req, res) => {
 
 // Create a question owned by a surveyor
 router.post('/questions', async (req, res) => {
-  const { surveyorId, text, type, options } = req.body
-  if (!surveyorId || !text || !type)
-    return void res.status(400).json({ error: 'surveyorId, text, type required' })
-  if (type !== 'yesno' && type !== 'multiplechoice')
-    return void res.status(400).json({ error: 'Invalid question type' })
-  if (type === 'multiplechoice') {
-    if (!Array.isArray(options) || options.length < 2 || options.length > 4)
-      return void res.status(400).json({ error: 'Multiple choice needs 2–4 options' })
-    if (options.some((o: unknown) => typeof o !== 'string' || !o.trim()))
-      return void res.status(400).json({ error: 'Options cannot be empty' })
-  }
+  const { surveyorId } = req.body
+  if (!surveyorId) return void res.status(400).json({ error: 'surveyorId required' })
+
+  const v = validateQuestionInput(req.body)
+  if (!v.ok) return void res.status(400).json({ error: v.error })
 
   const surveyor = await prisma.surveyor.findUnique({ where: { id: surveyorId } })
   if (!surveyor) return void res.status(404).json({ error: 'Surveyor not found' })
 
   const question = await prisma.question.create({
     data: {
-      text: String(text).trim().slice(0, 280),
-      type,
-      options: type === 'multiplechoice'
-        ? JSON.stringify((options as string[]).map(o => o.trim()))
-        : null,
+      text: v.text,
+      type: v.type,
+      options: v.options ? JSON.stringify(v.options) : null,
       surveyorId,
     },
   })

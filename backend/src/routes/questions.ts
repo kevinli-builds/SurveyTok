@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { prisma } from '../lib/prisma'
 import { tally } from '../lib/tally'
 import { writeLimiter } from '../lib/rateLimit'
+import { validateQuestionInput, validateAnswerValue } from '../lib/questionInput'
+import { safeSecretEqual } from '../lib/secrets'
 
 const router = Router()
 
@@ -57,19 +59,19 @@ router.get('/mine', async (req, res) => {
 
 // Post a new question
 router.post('/', writeLimiter, async (req, res) => {
-  const { authorId, text, type, options } = req.body
-  if (!authorId || !text || !type)
-    return void res.status(400).json({ error: 'authorId, text, type required' })
+  const { authorId } = req.body
+  if (!authorId) return void res.status(400).json({ error: 'authorId required' })
 
-  // Guard: options must be an array if provided
-  if (options !== undefined && !Array.isArray(options))
-    return void res.status(400).json({ error: 'options must be an array' })
+  // Same validation as the surveyor path — text/options are bounded so the public
+  // feed can't be flooded with oversized or malformed questions.
+  const v = validateQuestionInput(req.body)
+  if (!v.ok) return void res.status(400).json({ error: v.error })
 
   const question = await prisma.question.create({
     data: {
-      text,
-      type,
-      options: Array.isArray(options) ? JSON.stringify(options) : null,
+      text: v.text,
+      type: v.type,
+      options: v.options ? JSON.stringify(v.options) : null,
       authorId,
     },
   })
@@ -78,13 +80,14 @@ router.post('/', writeLimiter, async (req, res) => {
 
 // Submit an answer; returns aggregate results immediately
 router.post('/:id/answer', writeLimiter, async (req, res) => {
-  const { userId, value } = req.body
+  const { userId } = req.body
   const { id } = req.params
-  if (!userId || value === undefined)
-    return void res.status(400).json({ error: 'userId, value required' })
+  if (!userId) return void res.status(400).json({ error: 'userId required' })
+  const av = validateAnswerValue(req.body?.value)
+  if (!av.ok) return void res.status(400).json({ error: av.error })
 
   try {
-    await prisma.answer.create({ data: { questionId: id, userId, value } })
+    await prisma.answer.create({ data: { questionId: id, userId, value: av.value } })
   } catch (e: any) {
     if (e.code === 'P2002') return void res.status(409).json({ error: 'Already answered' })
     throw e
@@ -114,8 +117,7 @@ router.get('/:id/results', async (req, res) => {
 
 // Admin: all questions with tallied results
 router.get('/admin/all', async (req, res) => {
-  const secret = req.headers['x-admin-secret']
-  if (!secret || secret !== process.env.ADMIN_SECRET)
+  if (!safeSecretEqual(req.headers['x-admin-secret'], process.env.ADMIN_SECRET))
     return void res.status(401).json({ error: 'Unauthorized' })
 
   const questions = await prisma.question.findMany({
@@ -140,8 +142,7 @@ router.get('/admin/all', async (req, res) => {
 
 // Admin: delete a question
 router.delete('/admin/:id', async (req, res) => {
-  const secret = req.headers['x-admin-secret']
-  if (!secret || secret !== process.env.ADMIN_SECRET)
+  if (!safeSecretEqual(req.headers['x-admin-secret'], process.env.ADMIN_SECRET))
     return void res.status(401).json({ error: 'Unauthorized' })
 
   await prisma.answer.deleteMany({ where: { questionId: req.params.id } })

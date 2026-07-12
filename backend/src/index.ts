@@ -2,6 +2,7 @@ import 'dotenv/config'
 import 'express-async-errors' // routes async throws to the error handler instead of hanging
 import express, { type Request, type Response, type NextFunction } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import { questionsRouter } from './routes/questions'
 import { usersRouter } from './routes/users'
 import { surveyorsRouter } from './routes/surveyors'
@@ -12,6 +13,25 @@ const app = express()
 // Render runs behind a single proxy; trust it so req.ip reflects the real client
 // (required for correct per-IP rate limiting).
 app.set('trust proxy', 1)
+
+// Security headers. This is a JSON API plus one self-served HTML page (/privacy),
+// so the CSP allows that page's inline <style> + data: images and otherwise locks
+// things down (no framing, no object embeds). CORP is cross-origin because the API
+// is consumed by the Vercel web app + Expo app from other origins.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      scriptSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}))
 
 // CORS: allow our web app (and Vercel preview deploys) plus non-browser clients
 // (the Expo app and server-to-server calls send no Origin header).
@@ -34,7 +54,8 @@ app.use(cors({
   },
 }))
 
-app.use(express.json())
+// Questions/answers are tiny; cap the body so a giant payload can't exhaust memory.
+app.use(express.json({ limit: '16kb' }))
 
 // Retirement kill-switch (ST1): when SERVICE_RETIRED is set, close the auth + write
 // surface (503) for everything except /health and /privacy. No-op by default.
@@ -53,7 +74,7 @@ app.get('/privacy', (_req, res) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privacy Policy — Do I Want To Know</title>
+  <title>Privacy Policy — SurveyTok</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a2e; background: #fafafa; padding: 0 16px 60px; }
@@ -72,10 +93,10 @@ app.get('/privacy', (_req, res) => {
 <body>
   <div class="wrap">
     <h1>Privacy Policy</h1>
-    <p class="meta">Do I Want To Know &nbsp;·&nbsp; Last updated: May 2026</p>
+    <p class="meta">SurveyTok &nbsp;·&nbsp; Last updated: May 2026</p>
 
     <h2>What this app is</h2>
-    <p>Do I Want To Know is a survey platform. You can post questions, answer questions posted by others, and see aggregated results. The app is designed to work without requiring any personal information.</p>
+    <p>SurveyTok is an anonymous poll platform. You can post questions, answer questions posted by others, and see aggregated results. The app is designed to work without requiring any personal information.</p>
 
     <hr />
 
@@ -131,7 +152,7 @@ app.get('/privacy', (_req, res) => {
     <hr />
 
     <h2>Contact</h2>
-    <p>Questions? Email us at <a href="mailto:privacy@diwtkn.com">privacy@diwtkn.com</a></p>
+    <p>Questions? Email us at <a href="mailto:privacy@surveytok.app">privacy@surveytok.app</a></p>
   </div>
 </body>
 </html>`)
