@@ -115,3 +115,26 @@ Votes-over-time sparkline, completion funnel (S2), CSV export per question
 ### Sequencing: S4 first (cheap, improves everything), S1, S3+S7, then S2;
 S5/S6 after the core proves out. Fold the API into Vercel (section 3)
 before any of this — cold starts break respondent flows.
+
+---
+
+## Security & code-quality audit (2026-07-12, Fable portfolio pass)
+
+_PARKED but, per the status ledger, **"Live but dormant."** The code wasn't
+deep-audited (parked); the finding is operational and lives partly in the private
+doc `C:\Users\snoww\PORTFOLIO_SECURITY_AUDIT.md`._
+
+**ST1 — a parked-but-deployed app is standing, unwatched attack surface.** The
+Render `surveytok-backend` web service + its database appear to still be live while
+nobody maintains them: dependencies accrue CVEs, nobody reads the logs, and it's a
+second front door into infra. It also has an auth surface (`lib/password.ts`,
+`routes/surveyors.ts`) and a DB of any real respondents. **Recommendation: decide
+explicitly** — either (a) **decommission** (suspend/delete the Render service + its
+DB, keep the code in git so it can be revived) which removes the risk and any idle
+cost, or (b) if you want it reachable, at least bump dependencies and confirm the
+admin/surveyor password is strong. Since the whole app is parked "unless revived,"
+(a) is the cleaner call.
+
+**Housekeeping:** the DIWTK privacy policy is stale SurveyTok-era text — when
+SurveyTok is decommissioned, make sure nothing still links to its `/privacy` or
+implies it's active. (Tracked separately in the DIWTK brief.)
