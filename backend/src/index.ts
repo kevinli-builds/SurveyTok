@@ -5,6 +5,7 @@ import cors from 'cors'
 import { questionsRouter } from './routes/questions'
 import { usersRouter } from './routes/users'
 import { surveyorsRouter } from './routes/surveyors'
+import { retirementGuard, SERVICE_RETIRED } from './lib/retirement'
 
 const app = express()
 
@@ -34,6 +35,10 @@ app.use(cors({
 }))
 
 app.use(express.json())
+
+// Retirement kill-switch (ST1): when SERVICE_RETIRED is set, close the auth + write
+// surface (503) for everything except /health and /privacy. No-op by default.
+app.use(retirementGuard(SERVICE_RETIRED))
 
 app.use('/questions', questionsRouter)
 app.use('/users', usersRouter)

@@ -129,11 +129,27 @@ Render `surveytok-backend` web service + its database appear to still be live wh
 nobody maintains them: dependencies accrue CVEs, nobody reads the logs, and it's a
 second front door into infra. It also has an auth surface (`lib/password.ts`,
 `routes/surveyors.ts`) and a DB of any real respondents. **Recommendation: decide
-explicitly** — either (a) **decommission** (suspend/delete the Render service + its
-DB, keep the code in git so it can be revived) which removes the risk and any idle
-cost, or (b) if you want it reachable, at least bump dependencies and confirm the
-admin/surveyor password is strong. Since the whole app is parked "unless revived,"
-(a) is the cleaner call.
+explicitly** — either (a) **decommission** (the cleaner call — see runbook below) or
+(b) keep it reachable but then bump dependencies and confirm the admin/surveyor
+password is strong.
+
+**Kill-switch shipped (2026-07-12) — the "keep it deployed but inert" middle ground.**
+`backend/src/lib/retirement.ts` + a guard in `index.ts`: set env `SERVICE_RETIRED=1`
+on Render → every route except `/health` and `/privacy` answers `503`, closing the
+auth + write surface without deleting anything. Off by default (no behaviour change
+until set). Verified against the compiled guard (data/auth → 503; health/privacy →
+200; unset → pass-through). Note it still needs a Render **Manual Deploy** to take
+effect, so it's most useful if you want to park-but-close rather than fully delete.
+
+**Decommission runbook (recommended, ~5 min, all in dashboards — no code):**
+1. **Render** → `surveytok-backend` → Settings → **Suspend** (reversible) or **Delete**
+   the service. Suspending stops the compute + closes the HTTP surface immediately.
+2. **Neon** → project `surveytok` (`late-shadow-55947917`) → **Delete project** (or at
+   least rotate `DATABASE_URL` / disable) so the respondent DB isn't reachable.
+3. **Vercel** → `survey-tok-nouc` → pause/delete the web project if you don't want the
+   feed live either (it just errors against a dead backend otherwise).
+4. Rotate `ADMIN_SECRET` wherever it was set (Render + Vercel) since it's the one
+   shared secret. Code stays in git for revival.
 
 **Housekeeping:** the DIWTK privacy policy is stale SurveyTok-era text — when
 SurveyTok is decommissioned, make sure nothing still links to its `/privacy` or

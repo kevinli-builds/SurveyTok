@@ -251,6 +251,9 @@ WEB_ORIGIN=https://...           # Optional: comma-separated allowed CORS origin
                                  #   (defaults to the prod Vercel URL; *.vercel.app always allowed)
 INTERNAL_API_SECRET=...          # Optional: dedicated server-to-server secret for /surveyors
                                  #   (falls back to ADMIN_SECRET). Must match Vercel if set.
+SERVICE_RETIRED=1                # Optional kill-switch (ST1). Set to 1/true to close the
+                                 #   auth + write surface: every route except /health and
+                                 #   /privacy returns 503. Unset/anything-else = normal.
 ```
 
 ### Web (`web/.env.local`)
