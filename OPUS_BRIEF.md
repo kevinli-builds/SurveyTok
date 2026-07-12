@@ -120,37 +120,35 @@ before any of this — cold starts break respondent flows.
 
 ## Security & code-quality audit (2026-07-12, Fable portfolio pass)
 
-_PARKED but, per the status ledger, **"Live but dormant."** The code wasn't
-deep-audited (parked); the finding is operational and lives partly in the private
-doc `C:\Users\snoww\PORTFOLIO_SECURITY_AUDIT.md`._
+_The finding was operational; the sensitive part lives in the private doc
+`C:\Users\snoww\PORTFOLIO_SECURITY_AUDIT.md`._
 
-**ST1 — a parked-but-deployed app is standing, unwatched attack surface.** The
-Render `surveytok-backend` web service + its database appear to still be live while
-nobody maintains them: dependencies accrue CVEs, nobody reads the logs, and it's a
-second front door into infra. It also has an auth surface (`lib/password.ts`,
-`routes/surveyors.ts`) and a DB of any real respondents. **Recommendation: decide
-explicitly** — either (a) **decommission** (the cleaner call — see runbook below) or
-(b) keep it reachable but then bump dependencies and confirm the admin/surveyor
-password is strong.
+**DECISION (2026-07-12): keep SurveyTok LIVE and usable** (owner's call — not
+decommissioning). ST1's residual risk is now managed by hardening rather than teardown.
+Because it's a maintained live service, treat it like the other live apps: watch deps,
+keep `ADMIN_SECRET` strong, and don't let it rot.
 
-**Kill-switch shipped (2026-07-12) — the "keep it deployed but inert" middle ground.**
-`backend/src/lib/retirement.ts` + a guard in `index.ts`: set env `SERVICE_RETIRED=1`
-on Render → every route except `/health` and `/privacy` answers `503`, closing the
-auth + write surface without deleting anything. Off by default (no behaviour change
-until set). Verified against the compiled guard (data/auth → 503; health/privacy →
-200; unset → pass-through). Note it still needs a Render **Manual Deploy** to take
-effect, so it's most useful if you want to park-but-close rather than fully delete.
+**ST1 reinforcement — ✅ SHIPPED (2026-07-12).** Hardened the live backend:
+- **helmet** security headers (HSTS, `X-Content-Type-Options`, `frame-ancestors 'none'`,
+  `Referrer-Policy`, a CSP that still permits the `/privacy` page's inline styles);
+  CORP `cross-origin` for the Vercel + Expo clients. Verified live via header inspection.
+- **`express.json` capped at 16kb** (was unbounded → memory-DoS vector).
+- **Shared `validateQuestionInput`/`validateAnswerValue`** (`lib/questionInput.ts`): the
+  public app path used to store `text`/`options` raw + unbounded while the surveyor path
+  validated — now both enforce one rule set (type allow-list, 280-char text, 2–4 options,
+  per-option + answer-value caps).
+- **Constant-time `x-admin-secret` compare** (`lib/secrets.ts`) replacing plain `!==`.
+- **`npm audit` = 0 vulns** (backend) — no dep bumps needed this pass.
+- Fixed the stale `/privacy` page (was branded "Do I Want To Know" / `diwtkn.com`).
+  ⚠️ **Contact email is a placeholder** (`privacy@surveytok.app`) — point it at a real
+  inbox you monitor (or your preferred address).
+- **First backend tests** (vitest, 15) for the new pure logic + the retirement guard.
+- Deploy: **Render Manual Deploy** (public-repo repo has no auto-deploy). No DB migration.
 
-**Decommission runbook (recommended, ~5 min, all in dashboards — no code):**
-1. **Render** → `surveytok-backend` → Settings → **Suspend** (reversible) or **Delete**
-   the service. Suspending stops the compute + closes the HTTP surface immediately.
-2. **Neon** → project `surveytok` (`late-shadow-55947917`) → **Delete project** (or at
-   least rotate `DATABASE_URL` / disable) so the respondent DB isn't reachable.
-3. **Vercel** → `survey-tok-nouc` → pause/delete the web project if you don't want the
-   feed live either (it just errors against a dead backend otherwise).
-4. Rotate `ADMIN_SECRET` wherever it was set (Render + Vercel) since it's the one
-   shared secret. Code stays in git for revival.
+**Still available if you change your mind:** the `SERVICE_RETIRED=1` kill-switch
+(`lib/retirement.ts`) closes the surface (503 everything but `/health`+`/privacy`)
+without deleting anything; and a full decommission runbook is in git history / the
+private audit doc. Neither is active — the app stays fully live per the decision above.
 
-**Housekeeping:** the DIWTK privacy policy is stale SurveyTok-era text — when
-SurveyTok is decommissioned, make sure nothing still links to its `/privacy` or
-implies it's active. (Tracked separately in the DIWTK brief.)
+**Related housekeeping (still open):** DIWTK's OWN `/privacy` is stale SurveyTok-era
+text — tracked in the DIWTK brief, unaffected by this.

@@ -333,6 +333,18 @@ npm start
 
 A security review was run on the full stack; these mitigations are in place:
 
+- **Security headers** (`helmet`, `index.ts`): HSTS, `X-Content-Type-Options`,
+  `frame-ancestors 'none'`, `Referrer-Policy`, a CSP that still allows the self-served
+  `/privacy` page's inline styles; CORP `cross-origin` for the Vercel + Expo clients
+- **Body-size cap**: `express.json({ limit: '16kb' })` — bounds request memory
+- **Input validation** (`lib/questionInput.ts`, shared by the app + surveyor create
+  paths): question `type` allow-list, 280-char text cap, 2–4 options with a per-option
+  cap, and a bounded answer value
+- **Constant-time secret compare** (`lib/secrets.ts`): `x-admin-secret` checked with
+  sha256 + `timingSafeEqual` in the admin routes and surveyor middleware
+- **Retirement kill-switch** (`lib/retirement.ts`): `SERVICE_RETIRED=1` → 503 all but
+  `/health`+`/privacy` (off by default)
+- **Tests**: `npm test` (vitest) covers the validators, secret compare, retirement guard
 - **Password hashing**: scrypt + per-user salt + `timingSafeEqual` (`lib/password.ts`)
 - **Session integrity**: surveyor cookie is HMAC-signed (`lib/surveyorSession.ts`),
   `httpOnly`, `SameSite=Strict`, and `Secure` in production
