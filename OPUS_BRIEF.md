@@ -139,9 +139,9 @@ keep `ADMIN_SECRET` strong, and don't let it rot.
   per-option + answer-value caps).
 - **Constant-time `x-admin-secret` compare** (`lib/secrets.ts`) replacing plain `!==`.
 - **`npm audit` = 0 vulns** (backend) — no dep bumps needed this pass.
-- Fixed the stale `/privacy` page (was branded "Do I Want To Know" / `diwtkn.com`).
-  ⚠️ **Contact email is a placeholder** (`privacy@surveytok.app`) — point it at a real
-  inbox you monitor (or your preferred address).
+- Fixed the stale `/privacy` page (was branded "Do I Want To Know" / `diwtkn.com`);
+  contact email set to the `snowwarrior1+surveytok@gmail.com` alias (routes to Kevin's
+  inbox, filterable by the `+surveytok` tag).
 - **First backend tests** (vitest, 15) for the new pure logic + the retirement guard.
 - Deploy: **Render Manual Deploy** (public-repo repo has no auto-deploy). No DB migration.
 

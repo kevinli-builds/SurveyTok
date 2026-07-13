@@ -152,7 +152,7 @@ app.get('/privacy', (_req, res) => {
     <hr />
 
     <h2>Contact</h2>
-    <p>Questions? Email us at <a href="mailto:privacy@surveytok.app">privacy@surveytok.app</a></p>
+    <p>Questions? Email us at <a href="mailto:snowwarrior1+surveytok@gmail.com">snowwarrior1+surveytok@gmail.com</a></p>
   </div>
 </body>
 </html>`)
